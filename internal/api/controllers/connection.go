@@ -44,6 +44,13 @@ func (s *connectionController) HandleConnection(wsconnection *websocket.Conn) {
 }
 
 func (s *connectionController) Register(router fiber.Router) {
+  router.Use(func(c *fiber.Ctx) error {
+    if websocket.IsWebSocketUpgrade(c) {
+      c.Locals("allowed", true)
+      return c.Next()
+    }
+    return fiber.ErrUpgradeRequired
+  })
   router.Get("/ws", websocket.New(func (c *websocket.Conn) {
     s.HandleConnection(c)
   }))
@@ -82,7 +89,7 @@ type connection struct {
   Wsconnection *websocket.Conn
   ID string
   User *models.UserModel
-  Room *services.Room
+  Room *models.Room
 }
 
 func (c *connection) read() (map[string]interface{}, error) {
@@ -121,8 +128,7 @@ func (c *connection) onOpen() {
   for _, user := range users {
     u := make(map[string]interface{})
     u["name"] = user.Name
-    u["x"] = user.Position.X
-    u["y"] = user.Position.Y
+    u["score"] = user.Score
     data["users"] = append(
       data["users"].([]map[string]interface{}),
       u,
@@ -159,8 +165,12 @@ func (c *connection) Handle() {
     switch int(messageEvent) {
     case models.MessageEventAuthenticate:
       c.handleAuthenticate(models.MakeMessageAuthenticate(data))
-    case models.MessageEventUserMove:
-      c.handleUserMove(models.MakeMessageUserMove(data))
+    case models.MessageEventChangeScore:
+      c.handleChangeScore(models.MakeMessageChangeScore(data))
+    case models.MessageEventWin:
+      c.handleWin(models.MakeMessageWin(data))
+    case models.MessageEventRestart:
+      c.handleRestart()
     }
   }
 }
@@ -174,13 +184,48 @@ func (c *connection) handleAuthenticate(msg models.MessageAuthenticate) {
   c.Room = room
   log.Print("Connection: " + c.ID + " Auth ", user, " ", room.Name)
   resp := make(map[string]interface{})
-  resp["event"] = "ok"
-  c.Write(resp)
+  resp["event"] = models.MessageEventAuthenticate
+  resp["data"] = models.ToMap(user)
+  c.broadcast(models.ToMap(resp))
 }
 
-func (c *connection) handleUserMove(msg models.MessageUserMove) {
-  user := c.Service.userService.Move(c.User.Name, msg.Data)
-  log.Print("Connection: " + c.ID + " Move. Updated position: ", user.Position)
+func (c *connection) handleChangeScore(msg models.MessageChangeScore) {
+  user := c.Service.userService.AddScore(c.User.Name, msg.Data)
+  c.Room.TotalScore += -msg.Data.Amount;
+
+  log.Print("Connection: " + c.ID + " Change score. Updated score: ", user.Score)
   msg.Data.Username = c.User.Name;
   c.broadcast(models.ToMap(msg))
+}
+
+func (c *connection) handleWin(msg models.MessageWin) {
+  if c.User.Name != "admin" {
+    return;
+  }
+
+  user := c.Service.userService.Win(c.Room.TotalScore, msg.Data)
+  log.Print("Connection: " + c.ID + " User " + user.Name + " Win. Updated score: ", user.Score)
+  data := make(map[string]interface{})
+  body := map[string]interface{} {
+    "username": msg.Data.Name,
+    "amount": float64(c.Room.TotalScore),
+  }
+  data["data"] = body;
+  scoreMsg := models.MakeMessageChangeScore(data)
+  c.Room.TotalScore = 0
+
+  c.broadcast(models.ToMap(scoreMsg))
+}
+
+func (c *connection) handleRestart() {
+  if c.User.Name != "admin" {
+    return;
+  }
+
+  roomCoins := c.Service.userService.ResetCoins() + c.Room.TotalScore
+  c.Service.userService.SetUsersCoins(roomCoins / len(c.Room.Users))
+}
+
+func (c *connection) handlePauseBetting() {
+  // TODO: Disable Bet button for users for some time
 }

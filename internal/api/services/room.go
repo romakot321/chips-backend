@@ -1,39 +1,34 @@
 package services
 
 import (
-  "github.com/romakot321/game-backend/internal/api/repositories"
+  "log"
+
   "github.com/romakot321/game-backend/internal/api/models"
 )
 
-type Room struct {
-  entityRepository repositories.EntityRepository
-  users []*models.UserModel
-  Name string
-}
-
 type RoomService interface {
-  Authenticate(msg models.MessageAuthenticateData) *Room
-  GetList() []*Room
+  Authenticate(msg models.MessageAuthenticateData) *models.Room
+  List() []*models.Room
 }
 
 type roomService struct {
-  rooms map[string]*Room
+  rooms map[string]*models.Room
 }
 
-func (s *roomService) Authenticate(msg models.MessageAuthenticateData) *Room {
+func (s *roomService) Authenticate(msg models.MessageAuthenticateData) *models.Room {
   room, ok := s.rooms[msg.Room]
   if ok {
     return room
   }
-  entityRepository := repositories.NewEntityRepository()
   users := make([]*models.UserModel, 0)
-  room = &Room{entityRepository: entityRepository, Name: msg.Room, users: users}
+  room = &models.Room{Name: msg.Room, Users: users}
   s.rooms[msg.Room] = room
+  log.Println("Create room " + msg.Room)
   return room
 }
 
-func (s *roomService) GetList() []*Room {
-  resp := make([]*Room, len(s.rooms))
+func (s *roomService) List() []*models.Room {
+  resp := make([]*models.Room, len(s.rooms))
   for _, room := range s.rooms {
     resp = append(resp, room)
   }
@@ -41,14 +36,6 @@ func (s *roomService) GetList() []*Room {
 }
 
 func NewRoomService() RoomService {
-  rooms := make(map[string]*Room)
+  rooms := make(map[string]*models.Room, 0)
   return &roomService{rooms: rooms}
-}
-
-func (r *Room) AddEntity(model *models.EntityModel) {
-  r.entityRepository.Add(model)
-}
-
-func (r *Room) AddUser(model *models.UserModel) {
-  r.users = append(r.users, model)
 }

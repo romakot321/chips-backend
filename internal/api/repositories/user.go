@@ -34,8 +34,8 @@ func (r userRepository) Update(schema models.UserModel) *models.UserModel {
     if user.Name != schema.Name {
       continue
     }
-    if schema.Position != nil {
-      user.Position.Add(schema.Position)
+    if schema.Score != 0 {
+      user.Score += schema.Score
     }
     return user
   }

@@ -9,8 +9,11 @@ import (
 
 type UserService interface {
   Authenticate(msg models.MessageAuthenticateData) *models.UserModel
-  Move(name string, msg models.MessageUserMoveData) *models.UserModel
+  AddScore(name string, msg models.MessageChangeScoreData) *models.UserModel
+  Win(roomScore int, msg models.MessageWinData) *models.UserModel
   GetList() []*models.UserModel
+  ResetCoins() int
+  SetUsersCoins(value int)
 }
 
 type userService struct {
@@ -27,12 +30,43 @@ func (s userService) Authenticate(msg models.MessageAuthenticateData) *models.Us
   return user
 }
 
-func (s userService) Move(name string, msg models.MessageUserMoveData) *models.UserModel {
+func (s userService) AddScore(name string, msg models.MessageChangeScoreData) *models.UserModel {
   schema := models.UserModel{
     Name: name,
-    Position: &models.Vector{X: msg.X, Y: msg.Y},
+    Score: msg.Amount,
   }
   return s.userRepository.Update(schema)
+}
+
+func (s userService) Win(roomScore int, msg models.MessageWinData) *models.UserModel {
+  schema := models.UserModel{
+    Name: msg.Name,
+    Score: roomScore,
+  }
+  return s.userRepository.Update(schema)
+}
+
+func (s userService) ResetCoins() int {
+  total := 0
+  for _, user := range s.userRepository.GetList() {
+    schema := models.UserModel{
+      Name: user.Name,
+      Score: -user.Score,
+    }
+    s.userRepository.Update(schema)
+    total += user.Score
+  }
+  return total
+}
+
+func (s userService) SetUsersCoins(value int) {
+  for _, user := range s.userRepository.GetList() {
+    schema := models.UserModel{
+      Name: user.Name,
+      Score: value - user.Score,
+    }
+    s.userRepository.Update(schema)
+  }
 }
 
 func (s userService) GetList() []*models.UserModel {
