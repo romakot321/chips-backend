@@ -21,7 +21,7 @@ func Run() {
   router := fiber.New()
 
   app.Use(cors.New(cors.Config{
-    AllowOrigins: "http://localhost:8003,http://192.168.0.106:8003",
+    AllowOrigins: "https://poker.eramir.ru",
     AllowHeaders: "*",
     AllowMethods: "*",
     AllowCredentials: true,
@@ -30,5 +30,5 @@ func Run() {
   router.Route("/game", connectionController.Register)
   router.Route("/room", roomController.Register)
 
-  log.Fatal(app.Listen("0.0.0.0:8000"))
+  log.Fatal(app.Listen("0.0.0.0:9000"))
 }
